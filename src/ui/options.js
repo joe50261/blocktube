@@ -340,6 +340,168 @@
     $('save_btn').classList.remove('disabled-btn');
   });
 
+  function extractBlockedChannelNames() {
+    const content = jsEditors['channelId'].getValue();
+    const lines = content.split('\n');
+    const names = [];
+    const commentRegex = /^\/\/ Blocked by context menu \((.+)\) \(/;
+
+    for (const line of lines) {
+      const match = commentRegex.exec(line.trim());
+      if (match && match[1] !== 'undefined') {
+        names.push(match[1]);
+      }
+    }
+    return [...new Set(names)];
+  }
+
+  function getExistingChannelNamePatterns() {
+    const content = jsEditors['channelName'].getValue();
+    return content.split('\n')
+      .map(l => l.trim())
+      .filter(l => l && !l.startsWith('//'))
+      .map(l => l.toLowerCase());
+  }
+
+  function suggestChannelNames() {
+    const names = extractBlockedChannelNames();
+    if (names.length === 0) {
+      showSuggestionsModal([]);
+      return;
+    }
+
+    const existing = getExistingChannelNamePatterns();
+
+    const stopWords = new Set([
+      'the', 'a', 'an', 'and', 'or', 'of', 'in', 'on', 'at', 'to', 'for',
+      'is', 'it', 'this', 'that', 'with', 'by', 'from', 'as', 'be',
+      'was', 'are', 'has', 'have', 'do', 'not', 'no', 'my', 'your',
+      'we', 'you', 'he', 'she', 'they', 'me', 'us', 'if', 'so', 'but',
+      'de', 'la', 'le', 'el', 'en', 'et', 'les', 'des', 'un', 'une'
+    ]);
+
+    const wordMap = new Map();
+
+    for (const name of names) {
+      const words = name.split(/\s+/).filter(w => w.length >= 2);
+      const seen = new Set();
+
+      for (const word of words) {
+        const lower = word.toLowerCase();
+        if (stopWords.has(lower)) continue;
+        if (seen.has(lower)) continue;
+        seen.add(lower);
+
+        if (!wordMap.has(lower)) {
+          wordMap.set(lower, { display: word, channels: [] });
+        }
+        wordMap.get(lower).channels.push(name);
+      }
+    }
+
+    const suggestions = [];
+    for (const [word, data] of wordMap) {
+      if (data.channels.length < 2) continue;
+      if (existing.includes(word)) continue;
+
+      const coveredByRegex = existing.some(e => {
+        if (e.startsWith('/') && e.lastIndexOf('/') > 0) {
+          try {
+            const parts = /^\/(.*)\/(.*)$/.exec(e);
+            if (parts) return new RegExp(parts[1], parts[2]).test(word);
+          } catch (ex) {}
+        }
+        return false;
+      });
+      if (coveredByRegex) continue;
+
+      suggestions.push({
+        word: data.display,
+        wordLower: word,
+        count: data.channels.length,
+        total: names.length,
+        channels: data.channels
+      });
+    }
+
+    suggestions.sort((a, b) => b.count - a.count || a.wordLower.localeCompare(b.wordLower));
+    showSuggestionsModal(suggestions);
+  }
+
+  function showSuggestionsModal(suggestions) {
+    const modal = $('suggestions-modal');
+    const body = $('suggestions-body');
+    body.innerHTML = '';
+
+    if (suggestions.length === 0) {
+      const div = document.createElement('div');
+      div.className = 'no-suggestions';
+      div.innerHTML = 'No suggestions found.<br><small>Suggestions are generated from channel names recorded when blocking channels by ID via context menu. At least 2 channels must share a common keyword.</small>';
+      body.appendChild(div);
+      modal.style.display = 'flex';
+      return;
+    }
+
+    for (const s of suggestions) {
+      const div = document.createElement('div');
+      div.className = 'suggestion-item';
+
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.dataset.word = s.word;
+
+      const info = document.createElement('div');
+      info.className = 'suggestion-info';
+
+      const wordSpan = document.createElement('span');
+      wordSpan.className = 'suggestion-word';
+      wordSpan.textContent = s.word;
+
+      const countSpan = document.createElement('span');
+      countSpan.className = 'suggestion-count';
+      countSpan.textContent = `(${s.count}/${s.total} blocked channels)`;
+
+      const channelsDiv = document.createElement('div');
+      channelsDiv.className = 'suggestion-channels';
+      channelsDiv.textContent = s.channels.join(', ');
+
+      info.appendChild(wordSpan);
+      info.appendChild(countSpan);
+      info.appendChild(channelsDiv);
+      div.appendChild(cb);
+      div.appendChild(info);
+      body.appendChild(div);
+    }
+
+    modal.style.display = 'flex';
+  }
+
+  function closeSuggestionsModal() {
+    $('suggestions-modal').style.display = 'none';
+  }
+
+  function addSelectedSuggestions() {
+    const checkboxes = $('suggestions-body').querySelectorAll('input[type="checkbox"]:checked');
+    if (checkboxes.length === 0) {
+      closeSuggestionsModal();
+      return;
+    }
+
+    const words = [];
+    checkboxes.forEach(cb => words.push(cb.dataset.word));
+
+    const editor = jsEditors['channelName'];
+    let content = editor.getValue();
+    if (content.trim()) content += '\n';
+    content += '\n// Suggested from blocked channel IDs\n';
+    content += words.join('\n');
+    content += '\n';
+
+    editor.setValue(content);
+    closeSuggestionsModal();
+    $('save_btn').classList.remove('disabled-btn');
+  }
+
   function initTabs(name) {
     const element = document.getElementById(name);
     element.querySelectorAll("input[type='radio']").forEach((box) => {
@@ -368,5 +530,13 @@
   }
 
   initTabs('tabbed-filters-parent');
+
+  $('suggest_btn').addEventListener('click', suggestChannelNames);
+  $('modal-close').addEventListener('click', closeSuggestionsModal);
+  $('close-suggestions-btn').addEventListener('click', closeSuggestionsModal);
+  $('add-suggestions-btn').addEventListener('click', addSelectedSuggestions);
+  $('suggestions-modal').addEventListener('click', (e) => {
+    if (e.target === $('suggestions-modal')) closeSuggestionsModal();
+  });
 
 }());
