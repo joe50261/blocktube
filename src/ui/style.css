@@ -501,18 +501,22 @@ input#import {
 }
 
 .suggest-btn {
-  margin-top: 8px;
-  padding: 6px 16px;
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 8px 10px;
   background-color: var(--btn-bg);
   color: var(--white);
   border: 1.5px solid var(--borders);
   border-radius: 4px;
   cursor: pointer;
-  font-size: small;
+  font-size: smaller;
   font-weight: 600;
+  text-align: center;
 }
 .suggest-btn:hover {
   background-color: var(--btn-bg-focus);
+  color: #06c;
 }
 
 .modal-overlay {
