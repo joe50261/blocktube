@@ -363,6 +363,35 @@
       .map(l => l.toLowerCase());
   }
 
+  function tokenizeForSuggestion(name) {
+    const tokens = new Set();
+    const chunks = name.split(/\s+/).filter(c => c.length >= 2);
+
+    const cjkRe = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\u3400-\u4DBF\uAC00-\uD7AF\uF900-\uFAFF]+/g;
+    const latinRe = /[A-Za-z0-9]+/g;
+
+    for (const chunk of chunks) {
+      tokens.add(chunk);
+
+      const latinRuns = chunk.match(latinRe) || [];
+      for (const run of latinRuns) {
+        if (run.length >= 2) tokens.add(run);
+      }
+
+      const cjkRuns = chunk.match(cjkRe) || [];
+      for (const run of cjkRuns) {
+        const max = Math.min(5, run.length);
+        for (let len = 2; len <= max; len++) {
+          for (let i = 0; i <= run.length - len; i++) {
+            tokens.add(run.substr(i, len));
+          }
+        }
+      }
+    }
+
+    return [...tokens];
+  }
+
   function suggestChannelNames() {
     const names = extractBlockedChannelNames();
     if (names.length === 0) {
@@ -383,23 +412,23 @@
     const wordMap = new Map();
 
     for (const name of names) {
-      const words = name.split(/\s+/).filter(w => w.length >= 2);
+      const tokens = tokenizeForSuggestion(name);
       const seen = new Set();
 
-      for (const word of words) {
-        const lower = word.toLowerCase();
+      for (const token of tokens) {
+        const lower = token.toLowerCase();
         if (stopWords.has(lower)) continue;
         if (seen.has(lower)) continue;
         seen.add(lower);
 
         if (!wordMap.has(lower)) {
-          wordMap.set(lower, { display: word, channels: [] });
+          wordMap.set(lower, { display: token, channels: [] });
         }
         wordMap.get(lower).channels.push(name);
       }
     }
 
-    const suggestions = [];
+    let suggestions = [];
     for (const [word, data] of wordMap) {
       if (data.channels.length < 2) continue;
       if (existing.includes(word)) continue;
@@ -424,7 +453,24 @@
       });
     }
 
-    suggestions.sort((a, b) => b.count - a.count || a.wordLower.localeCompare(b.wordLower));
+    // Subsumption: drop A if some longer B contains A and has same count
+    // (A adds no unique matches beyond B)
+    const byLower = new Map(suggestions.map(s => [s.wordLower, s]));
+    suggestions = suggestions.filter(s => {
+      for (const [other, otherS] of byLower) {
+        if (other === s.wordLower) continue;
+        if (other.length <= s.wordLower.length) continue;
+        if (otherS.count !== s.count) continue;
+        if (other.includes(s.wordLower)) return false;
+      }
+      return true;
+    });
+
+    suggestions.sort((a, b) =>
+      b.count - a.count ||
+      b.wordLower.length - a.wordLower.length ||
+      a.wordLower.localeCompare(b.wordLower)
+    );
     showSuggestionsModal(suggestions);
   }
 
@@ -442,7 +488,18 @@
       return;
     }
 
-    for (const s of suggestions) {
+    const MAX_DISPLAY = 200;
+    const MAX_CHANNELS_SHOWN = 5;
+    const shown = suggestions.slice(0, MAX_DISPLAY);
+
+    if (suggestions.length > MAX_DISPLAY) {
+      const notice = document.createElement('div');
+      notice.style.cssText = 'font-size:small; opacity:0.7; margin-bottom:8px;';
+      notice.textContent = `Showing top ${MAX_DISPLAY} of ${suggestions.length} suggestions (sorted by frequency).`;
+      body.appendChild(notice);
+    }
+
+    for (const s of shown) {
       const div = document.createElement('div');
       div.className = 'suggestion-item';
 
@@ -463,7 +520,12 @@
 
       const channelsDiv = document.createElement('div');
       channelsDiv.className = 'suggestion-channels';
-      channelsDiv.textContent = s.channels.join(', ');
+      const sampleChannels = s.channels.slice(0, MAX_CHANNELS_SHOWN);
+      let channelsText = sampleChannels.join(', ');
+      if (s.channels.length > MAX_CHANNELS_SHOWN) {
+        channelsText += ` (+${s.channels.length - MAX_CHANNELS_SHOWN} more)`;
+      }
+      channelsDiv.textContent = channelsText;
 
       info.appendChild(wordSpan);
       info.appendChild(countSpan);
