@@ -97,6 +97,7 @@
     storageData.options.block_message = $('block_message').value;
     storageData.options.vidLength_type = $('vidLength_type').value;
     storageData.options.percent_watched_hide = parseInt($('percent_watched_hide').value, 10);
+    storageData.options.min_view_count = parseInt($('min_view_count').value, 10);
 
     saveData('status_save');
     detectColorScheme();
@@ -154,6 +155,7 @@
     $('enable_javascript').checked = get('options.enable_javascript', false, obj);
     $('block_message').value       = get('options.block_message', '', obj);
     $('percent_watched_hide').value = get('options.percent_watched_hide', NaN, obj);
+    $('min_view_count').value      = get('options.min_view_count', NaN, obj);
 
     const jsContent = get('filterData.javascript', defaultJSFunction, obj);
     jsEditors['javascript'].setValue(jsContent);

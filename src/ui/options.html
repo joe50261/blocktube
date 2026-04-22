@@ -129,6 +129,10 @@
             <input id="percent_watched_hide" size="3" type="number" min="0" max="100" autocomplete="off" /> % <span class="tooltip" title="* This feature uses Youtube's watch time tracking and will only work when logged in&#10; * Matched videos are only hidden and will work on direct access and playlists">?</span>
           </div>
           <div>
+            <label class="block-label" for="min_view_count">Hide videos with view count less than</label>
+            <input id="min_view_count" size="10" type="number" min="0" autocomplete="off" /> <span style="font-size:small; font-style:italic">views</span> <span class="tooltip" title="* This option hides videos whose view count is below the specified threshold.&#10;* Only works when view count is displayed in English (e.g. &quot;1.2K views&quot;).&#10;* The Subscriptions page is excluded from this filter.">?</span>
+          </div>
+          <div>
             <label class="block-label" for="vidLength_0">Runtime blocking</label>
             <select id="vidLength_type" class="select">
               <option value="block">Block</option>

@@ -493,6 +493,7 @@
   ObjectFilter.prototype.isDataEmpty = function () {
     if (storageData.options.shorts || storageData.options.movies || storageData.options.mixes) return false;
     if (!isNaN(storageData.options.percent_watched_hide)) return false;
+    if (!isNaN(storageData.options.min_view_count)) return false;
 
     if (!isNaN(storageData.filterData.vidLength[0]) ||
         !isNaN(storageData.filterData.vidLength[1])) return false;
@@ -522,6 +523,12 @@
       if (h === 'percentWatched' && storageData.options.percent_watched_hide && objectType != 'playlistPanelVideoRenderer'
            && !['/feed/history', '/feed/library', '/playlist'].includes(document.location.pathname)
            && parseInt(value) >= storageData.options.percent_watched_hide) return true;
+
+      if (h === 'viewCount' && !isNaN(storageData.options.min_view_count)
+           && document.location.pathname !== '/feed/subscriptions') {
+        const parsedViews = parseViewCount(value);
+        if (parsedViews !== undefined && parsedViews < storageData.options.min_view_count) return true;
+      }
 
       if (regexProps.includes(h) && properties.some(prop => prop && prop.test(value))) return true;
 
