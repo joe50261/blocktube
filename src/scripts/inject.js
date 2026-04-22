@@ -1019,29 +1019,25 @@
   }
 
   function parseViewCount(viewCount) {
-    const parts = viewCount.split(" ");
-    if (parts[1] !== "views" && parts[1] !== "view") return undefined; // Fail if not english formatting
-    let views = parts[0];
-    
-    // Handle abbreviated formats (K, M, B)
+    if (typeof viewCount !== 'string') return undefined;
+
     const multipliers = {
-      'K': 1000,
-      'M': 1000000,
-      'B': 1000000000
+      'K': 1000, 'M': 1000000, 'B': 1000000000,
+      '萬': 10000, '万': 10000, '億': 100000000, '亿': 100000000,
     };
-    
-    // Check if it ends with a multiplier
-    const lastChar = views.slice(-1).toUpperCase();
-    let multiplier = 1;
-    let numericPart = views.replace(',', '');
-    
-    if (multipliers[lastChar]) {
-      multiplier = multipliers[lastChar];
-      numericPart = views.slice(0, -1); // Remove the letter
-    }
-    
-    // Return the final count
-    return (numericPart * multiplier);
+
+    // Match a leading number (with optional thousands separators / decimal)
+    // optionally followed by an abbreviated multiplier character.
+    // Handles English ("1.2K views") and Chinese ("1.2萬次觀看", "1,234次觀看").
+    const match = viewCount.trim().match(/^([\d.,]+)\s*([KMB萬万億亿])?/i);
+    if (!match) return undefined;
+
+    const num = parseFloat(match[1].replace(/,/g, ''));
+    if (isNaN(num)) return undefined;
+
+    const suffix = match[2];
+    const multiplier = suffix ? (multipliers[suffix.toUpperCase()] || multipliers[suffix] || 1) : 1;
+    return num * multiplier;
   }
 
   function transformToRegExp(data) {
